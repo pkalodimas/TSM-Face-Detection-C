@@ -19,32 +19,26 @@ _Vector< _box<T> >* detect(_model<T> *model, _featurePyramid<T> *pyra){
 
 	if( !model || !pyra ) return NULL;
 
-	_Vector< _part<T> > *parts;
-	_Array<T> *rscore;
-	_Vector<  _Array<T>* > *XY;
-	_Vector<int> X, Y;
+	int minlevel = model->MinLevel;
 	_Vector< _box<T> > *boxes = createVector< _box<T> >(model->BoxCacheSize, false);
 	_Vector< _Vector< _part<T> > > *components = &model->components;
 	_Vector< _filter<T> > *filters = &model->filters;
-	_Vector< _Vector< _Array<T>* >* > *resp2 = NULL;
-	_Vector< _Array<T>* > *resp = NULL;
+	_Vector< _Array<T>* > *resp;
  
-	resp2 = createVector(resp2, pyra->feat.length, true);
 	boxes->length = 0;
 
-	for( int c=0; c<components->length; c++ ){
+	for( int level=minlevel; level<pyra->feat.length; level++ ){
+		
+		resp = featureResponce(pyra->feat.data[level], filters);
+		pyra->feat.data[level] = freeArray(pyra->feat.data[level], true);
+		if( !resp ) throw ERROR_FCONV_CODE;
+		
+		#ifdef OMP_ENABLE
+			#pragma omp parallel for
+		#endif
+		for( int c=0; c<components->length; c++ ){
 
-		for( int level=0; level<pyra->feat.length; level++ ){
-
-			if ( !resp2->data[level] ) {
-
-				resp2->data[level] = featureResponce(pyra->feat.data[level], filters);
-				if( !resp2->data[level] ) throw ERROR_FCONV_CODE;
-				pyra->feat.data[level] = freeArray(pyra->feat.data[level], true);
-			}
-			
-			resp = resp2->data[level];
-			parts = &(components->data[c]);
+			_Vector< _part<T> > *parts = &(components->data[c]);
 
 			for( int k=parts->length-1; k>0; k-- ){
 
@@ -68,18 +62,23 @@ _Vector< _box<T> >* detect(_model<T> *model, _featurePyramid<T> *pyra){
 				child->score = NULL;
 			}
 
-			rscore = matrixIncrease(parts->data[0].score, parts->data[0].w.data[0], parts->data[0].score);
+			_Array<T> *rscore = matrixIncrease(parts->data[0].score, parts->data[0].w.data[0], parts->data[0].score);
 			parts->data[0].score = NULL;
 			parts->data[0].level = level + 1;
 
+			_Vector<int> X, Y;
 			int e = find(rscore, model->thresh, model->Find_Buffer, &X, &Y);
 			if( e < 0 ) throw ERROR_FIND_CODE;
 
-			if( X.length > 0) {
+			if( X.length > 0 ) {
 				
-				XY = backtrack(&X, &Y, parts, pyra);
+				_Vector<  _Array<T>* > *XY = backtrack(&X, &Y, parts, pyra);
 				if( !XY ) throw ERROR_BACKTRACK_CODE;
-
+			
+				#ifdef OMP_ENABLE
+					#pragma omp critical
+					{
+				#endif
 				for( int i=0; i<X.length; i++ ){
 
 					if( boxes->length == model->BoxCacheSize ) {
@@ -95,6 +94,9 @@ _Vector< _box<T> >* detect(_model<T> *model, _featurePyramid<T> *pyra){
 
 					boxes->length++;
 				}
+				#ifdef OMP_ENABLE
+					} // OMP Critical
+				#endif
 				
 				freeVector(XY, true);
 			}
@@ -107,12 +109,9 @@ _Vector< _box<T> >* detect(_model<T> *model, _featurePyramid<T> *pyra){
 				parts->data[i].Iy = freeArray(parts->data[i].Iy, true);
 			}
 		}
+		
+		freeArrayPointersVector(resp, true);
 	}
-
-	for( int j=0; j<resp2->length; j++ ){
-		resp2->data[j] = freeArrayPointersVector(resp2->data[j], true);
-	}
-	freeVector(resp2, true);
 
 	return boxes;
 }

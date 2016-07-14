@@ -42,7 +42,7 @@ int main(int argc, char *argv[]){
 	int detnum = 0;	
 	signal(SIGSEGV, sig_handler);	// Segmentation fault (core dump) OS Signal handler
 	signal(SIGABRT, sig_handler);	// Aborted (core dump)
-	
+
 try{
 	#ifdef OMP_ENABLE
 		omp_set_nested(true);

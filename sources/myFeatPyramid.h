@@ -23,17 +23,19 @@ _featurePyramid<T> * featurePyramid(_Array<U> *image, _model<T> *model){
 	int sbin = model->sbin;
 	int interval = model->interval;
 	float sc = (float) pow((float)2,(float)1/interval);
-	int max_scale = 1 + (int) floor( log((double) mymin(image->dims[0], image->dims[1])/(5*sbin) ) / log(sc) );
 	int pads[3] = { max( model->maxsize.data[1]-2, 0)+1 , mymax( model->maxsize.data[0]-2, 0)+1, 0 };
 	
 	_Array<T> *im = createArray<T>(image->dims);
 	for( int i=0; i<image->length; i++ ){ im->data[i] = (T) image->data[i]; }	// uint8 to double
 	
-/* 	model->MinLevel = mymin(model->MinLevel, max_scale);
+	int max_scale = (int) ceilf(log2f( (float) image->dims[1]/model->Face_Height ) * model->interval);
+
+	model->MinLevel = mymin(model->MinLevel, max_scale);
 	if( model->MaxLevel > 0 ){
 		model->MaxLevel = mymax(model->MaxLevel, model->MinLevel);
 		max_scale = mymin(model->MaxLevel, max_scale);
-	}else model->MaxLevel = max_scale; */
+		model->MaxLevel = max_scale;
+	}else model->MaxLevel = max_scale;
 	
 	createVector(&pyra->feat,(int) max_scale, true);
 	createVector(&pyra->scale,(int) max_scale);
@@ -44,7 +46,7 @@ _featurePyramid<T> * featurePyramid(_Array<U> *image, _model<T> *model){
 		if( !scaled ) throw ERROR_RESIZE_CODE;
 
 		pyra->feat.data[i] = features(scaled, sbin, pads);
-		pyra->scale.data[i] = (float) 1/pow(sc,i);
+		pyra->scale.data[i] = (float) pow(2,(float)(i+interval)/interval) * sbin/2;
 		if( !pyra->feat.data[i] ) throw ERROR_FEATURES_CODE;
 
 		for( int j=i+interval; j<max_scale; j+=interval ){
@@ -53,7 +55,7 @@ _featurePyramid<T> * featurePyramid(_Array<U> *image, _model<T> *model){
 			if( !reduced ) throw ERROR_REDUCE_CODE;
 			
 			pyra->feat.data[j] = features(reduced, sbin, pads);
-			pyra->scale.data[j] = (float) (0.5 * pyra->scale.data[j-interval]);
+			pyra->scale.data[j] = (float) (2 * pyra->scale.data[j-interval]);
 			if( !pyra->feat.data[j] ) throw ERROR_FEATURES_CODE;
 
 			freeArray(scaled, true);
@@ -61,10 +63,6 @@ _featurePyramid<T> * featurePyramid(_Array<U> *image, _model<T> *model){
 		}
 
 		freeArray(scaled, true);
-	}
-
-	for( int i=0; i<pyra->feat.length; i++ ){
-		pyra->scale.data[i] = (float) model->sbin/pyra->scale.data[i];
 	}
 	
 	pyra->interval = interval;
