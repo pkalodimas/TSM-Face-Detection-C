@@ -10,9 +10,9 @@ myFaceDetector: myFaceDetectorFull.o
 	g++ -o myFaceDetector myFaceDetectorFull.o $(LIBS)
 	
 myFaceDetectorFull.o: myFaceDetectorFull.cpp
-	g++ $(IFLAGS) $(CFLAGS) myFaceDetectorFull.cpp
+	g++ $(IFLAGS) $(CFLAGS) sources/myFaceDetectorFull.cpp
 	
-myFaceDetectorFull.cpp: *.h
+myFaceDetectorFull.cpp: sources/*.h
 
 clean: 
-	rm *.o myFaceDetector
+	rm *.o myFaceDetector *.d
